@@ -24,9 +24,10 @@ COPY extension/ extension/
 
 USER root
 
+# Match the operator's FIPS build mode for the collector's Go binary.
 RUN cd cmd/otelcol-lightspeed && \
-    CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} \
-    go build -trimpath -o /workspace/otelcol-lightspeed .
+    CGO_ENABLED=1 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} \
+    go build -a -tags strictfipsruntime -trimpath -o /workspace/otelcol-lightspeed .
 
 
 # Stage 2: Minimal runtime image.
