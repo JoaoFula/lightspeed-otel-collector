@@ -153,90 +153,6 @@ func runKubectl(args ...string) (string, error) {
 	return strings.TrimSpace(stdout.String()), nil
 }
 
-const agenticDataRoot = "/var/lib/lightspeed-data-collection"
-
-func collectorPodName(t *testing.T) string {
-	t.Helper()
-	return kubectl(t, "get", "pod", "-n", env.Namespace, "-l", "app=otel-collector",
-		"-o", "jsonpath={.items[0].metadata.name}")
-}
-
-func collectorExec(t *testing.T, args ...string) string {
-	t.Helper()
-	pod := collectorPodName(t)
-	kubectlArgs := []string{"exec", "-n", env.Namespace, pod, "--"}
-	return kubectl(t, append(kubectlArgs, args...)...)
-}
-
-func agenticStreamDirectory(t *testing.T, stream string) string {
-	t.Helper()
-	switch stream {
-	case "actions", "transcripts":
-		return agenticDataRoot + "/" + stream
-	default:
-		t.Fatalf("unknown agentic stream %q", stream)
-		return ""
-	}
-}
-
-func listCollectorJSONL(t *testing.T, stream string) []string {
-	t.Helper()
-	dir := agenticStreamDirectory(t, stream)
-	out := collectorExec(t, "sh", "-c",
-		`for file in "$1"/*.jsonl; do [ -f "$file" ] && printf '%s\n' "${file##*/}"; done; exit 0`,
-		"list-jsonl", dir)
-	if out == "" {
-		return nil
-	}
-	return strings.Split(out, "\n")
-}
-
-func readCollectorJSONL(t *testing.T, stream, name string) string {
-	t.Helper()
-	if !strings.HasSuffix(name, ".jsonl") || strings.Contains(name, "/") {
-		t.Fatalf("invalid JSONL filename %q", name)
-	}
-	return collectorExec(t, "cat", agenticStreamDirectory(t, stream)+"/"+name)
-}
-
-func setCollectorStreamDirectoryMode(t *testing.T, stream, mode string) {
-	t.Helper()
-	collectorExec(t, "chmod", mode, agenticStreamDirectory(t, stream))
-}
-
-func collectorLogsSince(t *testing.T, since time.Time) string {
-	t.Helper()
-	return kubectl(t, "logs", "-n", env.Namespace, collectorPodName(t),
-		"--since-time="+since.UTC().Format(time.RFC3339Nano))
-}
-
-func waitForJSONLOutput(
-	t *testing.T,
-	stream string,
-	matches func(string) bool,
-	want int,
-	timeout time.Duration,
-) []string {
-	t.Helper()
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		var matching []string
-		for _, name := range listCollectorJSONL(t, stream) {
-			for _, line := range strings.Split(readCollectorJSONL(t, stream, name), "\n") {
-				if line != "" && matches(line) {
-					matching = append(matching, line)
-				}
-			}
-		}
-		if len(matching) >= want {
-			return matching
-		}
-		time.Sleep(250 * time.Millisecond)
-	}
-	t.Fatalf("timed out waiting for %d matching %s JSONL records", want, stream)
-	return nil
-}
-
 func mustKubectlApply(ns, manifest string) {
 	cmd := exec.Command("kubectl", "apply", "-n", ns, "-f", "-")
 	cmd.Stdin = strings.NewReader(manifest)
@@ -643,10 +559,8 @@ func renderCollectorConfig() string {
     protocols:
       grpc:
         endpoint: 0.0.0.0:4317
-        max_recv_msg_size_mib: 20
       http:
         endpoint: 0.0.0.0:4318
-        max_request_body_size: 20971520
 
 processors:
   batch:
@@ -668,12 +582,8 @@ exporters:
       num_consumers: 2
       queue_size: 100
       storage: file_storage
-  debug:
-    verbosity: basic
-  agentic:
-    actions_directory: /var/lib/lightspeed-data-collection/actions
-    transcripts_directory: /var/lib/lightspeed-data-collection/transcripts
-    max_backlog_bytes: 4194304
+  nop:
+
 extensions:
   health_check:
     endpoint: 0.0.0.0:13133
@@ -695,7 +605,7 @@ service:
       exporters: [postgres]
     traces:
       receivers: [otlp]
-      exporters: [debug, agentic]
+      exporters: [nop]
   telemetry:
     logs:
       level: info
@@ -762,8 +672,6 @@ spec:
           readOnly: true
         - name: file-storage
           mountPath: /var/lib/otelcol/file_storage
-        - name: agentic-data
-          mountPath: /var/lib/lightspeed-data-collection
         readinessProbe:
           httpGet:
             path: /
@@ -783,9 +691,6 @@ spec:
       - name: file-storage
         emptyDir:
           sizeLimit: 100Mi
-      - name: agentic-data
-        emptyDir:
-          sizeLimit: 32Mi
 ---
 apiVersion: v1
 kind: Service
