@@ -13,7 +13,6 @@ import (
 	otelconftelemetry "go.opentelemetry.io/collector/service/telemetry/otelconftelemetry"
 	routingconnector "github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector"
 	postgresexporter "github.com/openshift/lightspeed-otel-collector/postgresexporter"
-	agenticexporter "github.com/openshift/lightspeed-otel-collector/agenticexporter"
 	otlpexporter "go.opentelemetry.io/collector/exporter/otlpexporter"
 	otlphttpexporter "go.opentelemetry.io/collector/exporter/otlphttpexporter"
 	debugexporter "go.opentelemetry.io/collector/exporter/debugexporter"
@@ -74,7 +73,6 @@ func components() (otelcol.Factories, error) {
 
 	factories.Exporters, err = otelcol.MakeFactoryMap[exporter.Factory](
 		postgresexporter.NewFactory(),
-		agenticexporter.NewFactory(),
 		otlpexporter.NewFactory(),
 		otlphttpexporter.NewFactory(),
 		debugexporter.NewFactory(),
@@ -85,7 +83,6 @@ func components() (otelcol.Factories, error) {
 	}
 	factories.ExporterModules = makeModulesMap(factories.Exporters, map[component.Type]string{
 		postgresexporter.NewFactory().Type(): "github.com/openshift/lightspeed-otel-collector/postgresexporter v0.0.0",
-		agenticexporter.NewFactory().Type(): "github.com/openshift/lightspeed-otel-collector/agenticexporter v0.0.0",
 		otlpexporter.NewFactory().Type(): "go.opentelemetry.io/collector/exporter/otlpexporter v0.159.0",
 		otlphttpexporter.NewFactory().Type(): "go.opentelemetry.io/collector/exporter/otlphttpexporter v0.159.0",
 		debugexporter.NewFactory().Type(): "go.opentelemetry.io/collector/exporter/debugexporter v0.159.0",

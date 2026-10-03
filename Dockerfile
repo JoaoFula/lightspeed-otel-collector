@@ -11,7 +11,6 @@ WORKDIR /workspace
 # don't invalidate the download layer.
 COPY cmd/otelcol-lightspeed/go.mod cmd/otelcol-lightspeed/go.sum cmd/otelcol-lightspeed/
 COPY postgresexporter/go.mod postgresexporter/go.sum postgresexporter/
-COPY agenticexporter/go.mod agenticexporter/go.sum agenticexporter/
 COPY extension/postgresadmin/go.mod extension/postgresadmin/go.sum extension/postgresadmin/
 COPY extension/httpsmetrics/go.mod extension/httpsmetrics/go.sum extension/httpsmetrics/
 RUN cd cmd/otelcol-lightspeed && go mod download
@@ -19,7 +18,6 @@ RUN cd cmd/otelcol-lightspeed && go mod download
 # Copy source.
 COPY cmd/otelcol-lightspeed/ cmd/otelcol-lightspeed/
 COPY postgresexporter/ postgresexporter/
-COPY agenticexporter/ agenticexporter/
 COPY extension/ extension/
 
 USER root
@@ -43,10 +41,10 @@ COPY LICENSE /licenses/.
 
 LABEL name="openshift-lightspeed/otelcol-lightspeed-rhel9" \
       summary="Custom OpenTelemetry Collector for OpenShift Lightspeed" \
-      description="Receives OTLP telemetry, writes logs directly to PostgreSQL, and exports trace JSONL candidates." \
+      description="Receives OTLP telemetry and writes logs directly to PostgreSQL." \
       io.k8s.display-name="OTel Collector — Lightspeed" \
-      io.k8s.description="Custom OpenTelemetry Collector distribution that exports logs to PostgreSQL and trace JSONL candidates." \
-      io.openshift.tags="opentelemetry,otel,collector,postgres,logs,traces,jsonl,agentic" \
+      io.k8s.description="Custom OpenTelemetry Collector distribution that exports logs to PostgreSQL." \
+      io.openshift.tags="opentelemetry,otel,collector,postgres,logs" \
       cpe="cpe:/a:redhat:openshift_lightspeed:1::el9"
 
 # OTLP gRPC/HTTP, health check, admin API, and metrics ports.
