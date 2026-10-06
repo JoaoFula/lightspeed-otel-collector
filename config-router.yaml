@@ -67,7 +67,7 @@ exporters:
 # Update the routing tables below to adjust logs, backend traces or trace data collection.
 connectors:
   routing/logs:
-    # No generic logs destination exists, so unmatched logs are dropped (debug).
+    # Unmatched logs route to the debug exporter, which writes to stdout.
     # To forward unmatched logs elsewhere, replace logs/unmatched exporter with
     # an otlp exporter pointing to a central logging backend.
     default_pipelines: [logs/unmatched]

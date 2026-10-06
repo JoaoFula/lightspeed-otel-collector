@@ -39,9 +39,10 @@ JSONL for resources from the two allowlisted services.
 11. The PostgreSQL log branch is buffered through its configured queue; the
     trace data collection branch writes through FileExporter and uses its configured
     source-file lifecycle.
-12. The FileExporter uses size-triggered rotation at the configured 1 MiB
-    threshold, with up to 100 backups and a one-day age limit. These limits
-    are independent of consumer upload status and do not impose a hard disk
+12. The FileExporter uses size-triggered rotation at the configured
+    `rotation.max_megabytes` MiB threshold and applies configured
+    `max_backups` and `max_days` retention criteria. These settings are
+    independent of consumer upload status and do not impose a hard disk
     quota; write failures may propagate through a trace request even if a
     sibling destination already accepted the same batch. See
     `what/data-collection.md`.

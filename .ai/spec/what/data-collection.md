@@ -27,7 +27,8 @@ to a separate component.
    In routing mode, batching MUST occur only on the backend trace pipeline.
    The input fan-out and `traces/data_collection` pipeline MUST remain unbatched.
    Count-based batching can combine valid requests beyond FileExporter's
-   1 MiB write limit and acknowledge them before a later export rejection.
+   configured serialized write limit and acknowledge them before a later
+   export rejection.
 6. Internal telemetry uses the standard Collector and component
    instrumentation configured for the distribution.
 
@@ -37,7 +38,7 @@ to a separate component.
    `github.com/open-telemetry/opentelemetry-collector-contrib/exporter/fileexporter`
    v0.159.0. Its trace support is alpha; changes to this component version
    require a compatibility review.
-8. The active file and reference settings are:
+8. The reference FileExporter configuration is:
 
    ```yaml
    file/data_collection:
@@ -50,7 +51,9 @@ to a separate component.
        max_days: 1
    ```
 
-   The reference configurations MUST use these settings.
+   These are reference values, not deployment requirements. The
+   operator/deployment owns the actual FileExporter configuration; its
+   rotation and retention values may differ.
 9. `rotation.max_megabytes` is an integer count of MiB. Thus `1` is a 1 MiB
    rotation threshold; a 500 KB threshold is not representable by this field.
    `max_days` is an integer number of days.
@@ -76,19 +79,21 @@ to a separate component.
 13. With rotation enabled, a process restart MUST reopen and append to the
     configured active file. The `append: true` option MUST NOT be used with
     rotation.
-14. A serialized trace batch larger than the configured 1 MiB limit MUST be
-    rejected as an export error. The limit applies to the whole serialized
-    batch. The OTLP receiver's request-size limit is a separate constraint.
-15. `max_backups: 100` and `max_days: 1` are independent stock retention
+14. A serialized trace batch larger than the configured
+    `rotation.max_megabytes` MiB limit MUST be rejected as an export error.
+    The limit applies to the whole serialized batch. The OTLP receiver's
+    request-size limit is a separate constraint.
+15. The configured `max_backups` and `max_days` are independent stock retention
     criteria, not upload acknowledgements. Count-based cleanup can remove a
-    backup before its age limit. Age cleanup is asynchronous housekeeping, not
-    an exact wall-clock expiry service, and it does not rotate an idle active
-    file.
-16. The configured thresholds imply roughly one active MiB plus up to 100
-    backup MiB, not a hard filesystem quota. Asynchronous cleanup, files held
-    open after unlink, and other volume contents can increase actual disk
-    usage. Retention is independent of downstream processing; pod or
-    volume removal can lose remaining source files.
+    backup before the configured age limit. Age cleanup is asynchronous
+    housekeeping, not an exact wall-clock expiry service, and it does not
+    rotate an idle active file.
+16. The reference values `rotation.max_megabytes: 1` and `max_backups: 100`
+    give a reference-only estimate of roughly one active MiB plus up to 100
+    backup MiB (about 101 MiB), not a hard filesystem quota. Asynchronous
+    cleanup, files held open after unlink, and other volume contents can
+    increase actual disk usage. Retention is independent of downstream
+    processing; pod or volume removal can lose remaining source files.
 17. Invalid filesystem setup can prevent Collector startup. Runtime
     FileExporter failures can propagate through the OTLP trace request even
     if a sibling destination already accepted the same batch. Delivery is

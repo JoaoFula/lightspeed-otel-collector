@@ -109,27 +109,33 @@ The batch uses native OTLP JSON, not a Collector-defined record envelope or a
 downstream payload schema. The Collector does not redact selected OTLP data,
 so protect these files as raw trace data.
 
-FileExporter writes the JSON object and its LF separately. An exact 1 MiB
-object has been observed at the end of a closed backup without a trailing LF,
-with the separate LF appearing as an empty line in the new active file.
+FileExporter writes the JSON object and its LF separately. At the 1 MiB
+reference threshold, an exact 1 MiB object has been observed at the end of a
+closed backup without a trailing LF, with the separate LF appearing as an
+empty line in the new active file.
 Readers MUST accept a complete final JSON object without LF and ignore empty
 lines at rotation boundaries.
 
 `rotation.max_megabytes` is an integer number of MiB: `1` means 1 MiB; a 500 KB
-threshold is not representable by this setting. A serialized export batch
-larger than 1 MiB is rejected, not split across files or spans. This is
-independent of the OTLP receiver's larger request-size limit. Rotation is
-size-triggered only: a quiet, below-threshold active file is not moved to a
-backup on a timer or at shutdown. In rotation mode, a restart appends to the
-existing active file; do not set `append: true` with rotation.
+threshold is not representable by this setting. The YAML above is a reference
+example only; the operator/deployment owns the actual FileExporter
+configuration and may use different values. A serialized export batch larger
+than the configured `rotation.max_megabytes` MiB limit is rejected as an
+export error, not split across files or spans. The limit applies to the whole
+serialized batch and is separate from the OTLP receiver's request-size limit.
+Rotation is size-triggered only: a quiet, below-threshold active file is not
+moved to a backup on a timer or at shutdown. In rotation mode, a restart
+appends to the existing active file; do not set `append: true` with rotation.
 
-The 100-backup count and one-day age limits are stock retention criteria, not
-upload acknowledgements or a hard disk quota. Count cleanup can remove a backup
-before one day. Cleanup is asynchronous; age cleanup is housekeeping, not an
-exact expiry timer, and neither criterion rotates an idle active file. About
-101 MiB is an estimate for the active file plus backups, not a filesystem
-quota. Cleanup delays, files held open after unlink, and other data on the
-volume can increase space use. FileExporter has no custom queue, retry, or
+Configured `max_backups` and `max_days` are independent stock retention
+criteria, not upload acknowledgements. Count cleanup can remove a backup
+before the configured age limit. Cleanup is asynchronous; age cleanup is
+housekeeping, not an exact expiry timer, and it does not rotate an idle active
+file. The reference values `rotation.max_megabytes: 1` and `max_backups: 100`
+give a reference-only estimate of about 101 MiB for an active file plus
+backups, not a filesystem quota. Cleanup delays, files held open after unlink,
+and other data on the volume can increase space use.
+FileExporter has no custom queue, retry, or
 failure-isolation wrapper: setup or filesystem errors can prevent startup or
 fail a trace request, even if a sibling destination already accepted the same
 batch. It provides no exactly-once guarantee. Backup filenames are managed by
@@ -286,9 +292,10 @@ for file in "$work/otel/traces.jsonl" "${backups[@]}"; do
 done
 ```
 
-Each request contains one approximately 48 KB span batch (with a nested event),
-so no single request reaches the 1 MiB serialized-batch rejection threshold;
-32 writes exceed the size-rotation threshold. The loop deliberately uses one
+The standalone smoke uses the 1 MiB reference threshold. Each request contains
+one approximately 48 KB span batch (with a nested event), so no single request
+reaches its serialized-batch rejection threshold; 32 writes exceed the
+size-rotation threshold. The loop deliberately uses one
 span per request for compactness; the file format is still one whole OTLP
 batch per JSON object. The `jq` output from the active file and all closed
 backups should show `rotation-*` span names and nested `gen_ai.input` events.
@@ -309,9 +316,9 @@ The controller's smoke against the newly built distribution observed:
   with `max_backups: 2` removed the oldest backup.
 - Restarting below the threshold appended to the existing active file. A quiet
   interval and graceful shutdown did not create a backup.
-- At the exact 1 MiB boundary, the complete JSON object was in a closed backup
-  without LF and the separate LF was an empty record in the new active file.
-  A 1,050,149-byte serialized write returned HTTP 503 with
+- The local 1 MiB reference run observed the exact-boundary JSON object in a
+  closed backup without LF, with the separate LF as an empty record in the
+  new active file. A 1,050,149-byte serialized write returned HTTP 503 with
   `write length 1050149 exceeds maximum file size 1048576`.
 
 This is local Collector runtime evidence only. Kubernetes deployment/mount
